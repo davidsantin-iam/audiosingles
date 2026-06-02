@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://en.wikipedia.org">
+<link rel="preconnect" href="https://upload.wikimedia.org" crossorigin>
+<title>English Match · Colegio Juan Pablo II</title>
+<style>
+  :root{
+    --bg1:#6a5cff; --bg2:#22d3ee; --card:#ffffff; --ink:#243b53;
+    --good:#22c55e; --bad:#ef4444; --accent:#ff8c42; --gold:#ffcf33;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; margin:0;}
+  body{
+    font-family:"Chalkboard SE","Marker Felt","Comic Sans MS","Baloo 2",
+                -apple-system,system-ui,sans-serif;
+    color:var(--ink);
+    background:linear-gradient(135deg,var(--bg1),var(--bg2));
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+    overflow:hidden;
+    overscroll-behavior:none;
+  }
+  .screen{position:fixed; inset:0; display:none; flex-direction:column;
+          padding:env(safe-area-inset-top) env(safe-area-inset-right)
+                  env(safe-area-inset-bottom) env(safe-area-inset-left);}
+  .screen.active{display:flex;}
+
+  /* ---------- HEADER ---------- */
+  header{display:flex; align-items:center; gap:12px; padding:10px 16px;}
+  header h1{font-size:clamp(18px,3.4vw,28px); margin:0; color:#fff;
+            text-shadow:0 2px 0 rgba(0,0,0,.18); flex:1; line-height:1.1;}
+  .btn{border:none; border-radius:18px; padding:10px 16px; font:inherit;
+       font-size:clamp(14px,2.2vw,18px); font-weight:bold; color:var(--ink);
+       background:#fff; box-shadow:0 4px 0 rgba(0,0,0,.18); cursor:pointer;}
+  .btn:active{transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.18);}
+  .btn.ghost{background:rgba(255,255,255,.22); color:#fff;}
+
+  /* ---------- MAP / LEVEL SELECT ---------- */
+  #map .wrap{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:6px 16px 26px;}
+  .title-card{text-align:center; color:#fff; margin:4px 0 16px;}
+  .title-card .big{font-size:clamp(26px,6vw,46px); text-shadow:0 3px 0 rgba(0,0,0,.2);}
+  .title-card .sub{font-size:clamp(14px,2.6vw,20px); opacity:.95;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+        gap:14px; max-width:900px; margin:0 auto;}
+  .lvl{position:relative; background:var(--card); border-radius:24px; padding:16px 14px;
+       box-shadow:0 8px 0 rgba(0,0,0,.16); cursor:pointer; text-align:center;
+       transition:transform .08s;}
+  .lvl:active{transform:scale(.97);}
+  .lvl .num{display:inline-flex; align-items:center; justify-content:center;
+            width:46px; height:46px; border-radius:50%; background:var(--accent);
+            color:#fff; font-size:22px; font-weight:bold; margin-bottom:8px;}
+  .lvl .nm{font-size:clamp(15px,2.4vw,18px); line-height:1.15; min-height:2.3em;
+           display:flex; align-items:center; justify-content:center;}
+  .lvl .stars{font-size:20px; margin-top:6px; height:24px;}
+  .lvl.locked{filter:grayscale(.7); opacity:.65;}
+  .lvl.locked::after{content:"🔒"; position:absolute; top:10px; right:12px; font-size:22px;}
+  .lvl.done{outline:4px solid var(--gold);}
+
+  /* ---------- GAME ---------- */
+  #game .progress{display:flex; gap:8px; justify-content:center; padding:0 16px 8px;}
+  .pdot{width:14px; height:14px; border-radius:50%; background:rgba(255,255,255,.4);}
+  .pdot.cur{background:#fff; transform:scale(1.25);}
+  .pdot.ok{background:var(--gold);}
+
+  #board{position:relative; flex:1; display:grid;
+         grid-template-columns:25% 1fr 25%; gap:0; padding:6px 14px 16px;
+         touch-action:none; min-height:0;}
+  .col{display:flex; flex-direction:column; gap:10px; min-height:0;}
+  .col.left{grid-column:1;}
+  .col.right{grid-column:3;}
+  .card{flex:1; position:relative; background:var(--card); border-radius:20px;
+         box-shadow:0 5px 0 rgba(0,0,0,.14); display:flex; align-items:center;
+         justify-content:center; padding:6px 12px; touch-action:none;
+         min-height:0; transition:transform .08s, box-shadow .12s, background .2s;}
+  .card.word{font-size:clamp(16px,3.2vw,30px); font-weight:bold; text-align:center; line-height:1.1;}
+  .card.image{font-size:clamp(40px,9vw,84px); overflow:hidden;}
+  .card.image .photo{position:absolute; inset:4px; width:calc(100% - 8px); height:calc(100% - 8px);
+                     object-fit:contain; border-radius:14px; display:none; background:#fff;
+                     pointer-events:none;}
+  .card.image.has-photo .emoji{display:none;}
+  .card.image.has-photo .photo{display:block;}
+  .card.image .dot{z-index:11;}
+  .card .dot{position:absolute; top:50%; width:20px; height:20px; border-radius:50%;
+             background:var(--accent); transform:translateY(-50%);
+             box-shadow:0 0 0 4px rgba(255,140,66,.3);}
+  .card.word .dot{right:-3px;}
+  .card.image .dot{left:-3px;}
+  .card.active{transform:scale(1.04); box-shadow:0 5px 0 var(--accent), 0 0 0 4px var(--accent);}
+  .card.done{background:#e9fbef; box-shadow:0 5px 0 rgba(34,197,94,.4);}
+  .card.done .dot{background:var(--good); box-shadow:none;}
+  .card.wrong{animation:shake .4s; background:#ffe5e5;}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}
+                   40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+
+  svg.lines{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5;}
+  .card{z-index:10;}
+
+  /* ---------- OVERLAYS ---------- */
+  #overlay{position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+           background:rgba(0,0,0,.45); z-index:50; padding:20px;}
+  #overlay.show{display:flex;}
+  .panel{background:#fff; border-radius:30px; padding:30px 26px; text-align:center;
+          max-width:420px; width:100%; box-shadow:0 12px 0 rgba(0,0,0,.25);}
+  .panel .em{font-size:64px;}
+  .panel h2{margin:8px 0 4px; font-size:30px;}
+  .panel p{margin:0 0 18px; font-size:18px; opacity:.8;}
+  .panel .btn{margin:6px;}
+  .panel .btn.primary{background:var(--accent); color:#fff;}
+
+  #toast{position:fixed; top:18%; left:50%; transform:translateX(-50%) scale(.6);
+         background:#fff; color:var(--ink); padding:16px 28px; border-radius:24px;
+         font-size:26px; font-weight:bold; box-shadow:0 8px 0 rgba(0,0,0,.2);
+         opacity:0; pointer-events:none; z-index:60; transition:.25s;}
+  #toast.show{opacity:1; transform:translateX(-50%) scale(1);}
+
+  canvas#confetti{position:fixed; inset:0; pointer-events:none; z-index:70;}
+</style>
+</head>
+<body>
+
+<!-- ===================== MAP ===================== -->
+<section id="map" class="screen active">
+  <div class="wrap">
+    <div class="title-card">
+      <div class="big">🎒 English Match</div>
+      <div class="sub">Colegio Juan Pablo II · Une la palabra con su imagen</div>
+    </div>
+    <div class="grid" id="levelGrid"></div>
+    <div style="text-align:center; margin-top:22px;">
+      <button class="btn ghost" id="resetBtn">↺ Empezar de nuevo</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== GAME ===================== -->
+<section id="game" class="screen">
+  <header>
+    <button class="btn" id="backBtn">‹ Mapa</button>
+    <h1 id="gameTitle">Unit</h1>
+  </header>
+  <div class="progress" id="progress"></div>
+  <div id="board">
+    <div class="col left" id="colLeft"></div>
+    <div class="col right" id="colRight"></div>
+    <svg class="lines" id="lines"></svg>
+  </div>
+</section>
+
+<!-- ===================== OVERLAY ===================== -->
+<div id="overlay">
+  <div class="panel">
+    <div class="em" id="ovEm">⭐</div>
+    <h2 id="ovTitle">¡Genial!</h2>
+    <p id="ovText"></p>
+    <div id="ovBtns"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<canvas id="confetti"></canvas>
+
+<script>
+/* ============================================================
+   DATOS · 10 unidades del temario (palabra inglés + emoji)
+   ============================================================ */
+const UNITS = [
+  { title:"Time for school!", words:[
+    {w:"dictionary",e:"📕",q:"Dictionary"},{w:"pencil case",e:"✏️",q:"Pencil case"},
+    {w:"water bottle",e:"💧",q:"Water bottle"},{w:"lunch box",e:"🍱",q:"Lunchbox"},
+    {w:"glue stick",e:"🧴",q:"Glue stick"},{w:"folder",e:"📁",q:"File folder"},
+    {w:"scissors",e:"✂️",q:"Scissors"},{w:"pencil sharpener",e:"🪒",q:"Pencil sharpener"},
+    {w:"tracksuit",e:"🥋",q:"Tracksuit"},{w:"trainers",e:"👟",q:"Sneakers"},
+    {w:"sports bag",e:"🎒",q:"Duffel bag"},{w:"football boots",e:"⚽",q:"Football boot"},
+    {w:"shorts",e:"🩳",q:"Shorts"},{w:"football shirt",e:"👕",q:"Kit (association football)"},
+    {w:"crayons",e:"🖍️",q:"Crayon"},{w:"paints",e:"🎨",q:"Paint"},
+    {w:"paintbrushes",e:"🖌️",q:"Paintbrush"},{w:"paper",e:"📄",q:"Paper"} ]},
+
+  { title:"Mealtime", words:[
+    {w:"cereal",e:"🥣",q:"Breakfast cereal"},{w:"chips",e:"🍟",q:"French fries"},
+    {w:"rice",e:"🍚",q:"Cooked rice"},{w:"chicken",e:"🍗",q:"Roast chicken"},
+    {w:"meatballs",e:"🧆",q:"Meatball"},{w:"biscuits",e:"🍪",q:"Biscuit"},
+    {w:"yoghurt",e:"🥛",q:"Yogurt"},{w:"sandwiches",e:"🥪",q:"Sandwich"},
+    {w:"potatoes",e:"🥔",q:"Potato"},{w:"peas",e:"🫛",q:"Pea"},
+    {w:"carrots",e:"🥕",q:"Carrot"},{w:"peppers",e:"🫑",q:"Bell pepper"},
+    {w:"cucumbers",e:"🥒",q:"Cucumber"},{w:"beans",e:"🫘",q:"Bean"},
+    {w:"vegetables",e:"🥗",q:"Vegetable"},{w:"pasta",e:"🍝",q:"Pasta"},
+    {w:"cake",e:"🍰",q:"Cake"},{w:"drink",e:"🥤",q:"Soft drink"} ]},
+
+  { title:"Wild animals", words:[
+    {w:"giraffe",e:"🦒",q:"Giraffe"},{w:"zebra",e:"🦓",q:"Zebra"},
+    {w:"elephant",e:"🐘",q:"Elephant"},{w:"monkey",e:"🐒",q:"Monkey"},
+    {w:"hippo",e:"🦛",q:"Hippopotamus"},{w:"dolphin",e:"🐬",q:"Dolphin"},
+    {w:"tiger",e:"🐯",q:"Tiger"},{w:"penguin",e:"🐧",q:"Penguin"},
+    {w:"grass",e:"🌱",q:"Lawn"},{w:"leaves",e:"🍃",q:"Leaf"},
+    {w:"insects",e:"🐛",q:"Insect"},{w:"meat",e:"🍖",q:"Meat"},
+    {w:"nuts",e:"🥜",q:"Nut (fruit)"},{w:"seeds",e:"🌰",q:"Seed"},
+    {w:"kangaroo",e:"🦘",q:"Kangaroo"},{w:"crocodile",e:"🐊",q:"Crocodile"},
+    {w:"koala",e:"🐨",q:"Koala"},{w:"shark",e:"🦈",q:"Shark"} ]},
+
+  { title:"My favourite things", words:[
+    {w:"video game",e:"🎮",q:"Video game console"},{w:"guitar",e:"🎸",q:"Guitar"},
+    {w:"bracelet",e:"📿",q:"Bracelet"},{w:"poster",e:"🖼️",q:"Poster"},
+    {w:"helicopter",e:"🚁",q:"Helicopter"},{w:"watch",e:"⌚",q:"Watch"},
+    {w:"trophy",e:"🏆",q:"Trophy"},{w:"puppet",e:"🎭",q:"Puppet"},
+    {w:"hoodie",e:"👕",q:"Hoodie"},{w:"jeans",e:"👖",q:"Jeans"},
+    {w:"coat",e:"🧥",q:"Overcoat"},{w:"sandals",e:"👡",q:"Sandal"},
+    {w:"boots",e:"👢",q:"Boot"},{w:"pyjamas",e:"👚",q:"Pajamas"},
+    {w:"doll",e:"🪆",q:"Doll"},{w:"strings",e:"🧵",q:"Twine"},
+    {w:"material",e:"🪡",q:"Textile"},{w:"ribbon",e:"🎀",q:"Ribbon"} ]},
+
+  { title:"Around town", words:[
+    {w:"hospital",e:"🏥",q:"Hospital"},{w:"hotel",e:"🏨",q:"Hotel"},
+    {w:"supermarket",e:"🛒",q:"Supermarket"},{w:"toy shop",e:"🧸",q:"Toy"},
+    {w:"school",e:"🏫",q:"School"},{w:"police station",e:"🚔",q:"Police station"},
+    {w:"park",e:"🏞️",q:"Park"},{w:"bus stop",e:"🚏",q:"Bus stop"},
+    {w:"car",e:"🚗",q:"Car"},{w:"van",e:"🚐",q:"Van"},
+    {w:"lorry",e:"🚚",q:"Truck"},{w:"motorbike",e:"🏍️",q:"Motorcycle"},
+    {w:"train",e:"🚆",q:"Train"},{w:"bike",e:"🚲",q:"Bicycle"},
+    {w:"tram",e:"🚊",q:"Tram"},{w:"metro",e:"🚇",q:"Rapid transit"},
+    {w:"chair lift",e:"🚡",q:"Aerial lift"},{w:"taxi",e:"🚕",q:"Taxi"} ]},
+
+  { title:"At the weekend", words:[
+    {w:"play badminton",e:"🏸",q:"Badminton"},{w:"play ice hockey",e:"🏒",q:"Ice hockey"},
+    {w:"play table tennis",e:"🏓",q:"Table tennis"},{w:"play Frisbee",e:"🥏",q:"Frisbee"},
+    {w:"play tag",e:"🏃",q:"Tag (game)"},{w:"play hide and seek",e:"🙈",q:"Hide-and-seek"},
+    {w:"play chess",e:"♟️",q:"Chess"},{w:"play dominoes",e:"🎲",q:"Dominoes"},
+    {w:"listen to music",e:"🎧",q:"Headphones"},{w:"watch TV",e:"📺",q:"Television"},
+    {w:"play with friends",e:"👫",q:"Friendship"},{w:"read comics",e:"📖",q:"Comic book"},
+    {w:"do judo",e:"🥋",q:"Judo"},{w:"fly a kite",e:"🪁",q:"Kite"},
+    {w:"numbers",e:"🔢",q:""},{w:"lines",e:"📏",q:""},
+    {w:"points",e:"📍",q:""},{w:"chalk",e:"🖍️",q:"Chalk"} ]},
+
+  { title:"My day", words:[
+    {w:"have a shower",e:"🚿",q:"Shower"},{w:"go to bed",e:"🛏️",q:"Bed"},
+    {w:"get up",e:"⏰",q:"Alarm clock"},{w:"brush my teeth",e:"🪥",q:"Toothbrush"},
+    {w:"get dressed",e:"👕",q:"Clothing"},{w:"do my homework",e:"📝",q:"Homework"},
+    {w:"brush my hair",e:"💇",q:"Hairbrush"},{w:"go to school",e:"🎒",q:"School"},
+    {w:"the hour",e:"🕐",q:"Clock"},{w:"police officer",e:"👮",q:"Police officer"},
+    {w:"taxi driver",e:"🚕",q:"Taxicab"},{w:"farmer",e:"👨‍🌾",q:"Farmer"},
+    {w:"dentist",e:"🦷",q:"Dentist"} ]},
+
+  { title:"My talents", words:[
+    {w:"ride a bike",e:"🚴",q:"Cycling"},{w:"hop",e:"🐇",q:"Jumping"},
+    {w:"rollerblade",e:"🛼",q:"Inline skates"},{w:"skateboard",e:"🛹",q:"Skateboard"},
+    {w:"throw",e:"🤾",q:"Throwing"},{w:"kick",e:"🦵",q:"Kick"},
+    {w:"bounce",e:"🏀",q:"Basketball"},{w:"skip",e:"🪢",q:"Skipping rope"},
+    {w:"bake cupcakes",e:"🧁",q:"Cupcake"},{w:"paint pictures",e:"🎨",q:"Painting"},
+    {w:"play the keyboard",e:"🎹",q:"Musical keyboard"},{w:"act",e:"🎭",q:"Acting"},
+    {w:"juggle",e:"🤹",q:"Juggling"},{w:"do gymnastics",e:"🤸",q:"Gymnastics"},
+    {w:"dancers",e:"💃",q:"Dance"},{w:"children",e:"🧒",q:"Child"},
+    {w:"celebration",e:"🎉",q:"Party"},{w:"costumes",e:"👘",q:"Costume"} ]},
+
+  { title:"My home", words:[
+    {w:"curtains",e:"🪟",q:"Curtain"},{w:"painting",e:"🖼️",q:"Painting"},
+    {w:"vase",e:"🏺",q:"Vase"},{w:"shelf",e:"📚",q:"Shelf (storage)"},
+    {w:"armchair",e:"🛋️",q:"Armchair"},{w:"rug",e:"🟫",q:"Carpet"},
+    {w:"coffee table",e:"☕",q:"Coffee table"},{w:"fireplace",e:"🔥",q:"Fireplace"},
+    {w:"plate",e:"🍽️",q:"Plate"},{w:"glass",e:"🥛",q:"Drinking glass"},
+    {w:"jug",e:"🫗",q:"Jug"},{w:"knife",e:"🔪",q:"Kitchen knife"},
+    {w:"fork",e:"🍴",q:"Fork"},{w:"spoon",e:"🥄",q:"Spoon"},
+    {w:"roof",e:"🏠",q:"Roof"},{w:"chimney",e:"🏭",q:"Chimney"},
+    {w:"stairs",e:"🪜",q:"Stairs"},{w:"furniture",e:"🪑",q:"Furniture"} ]},
+
+  { title:"Days out", words:[
+    {w:"wildlife park",e:"🦁",q:"Zoo"},{w:"swimming pool",e:"🏊",q:"Swimming pool"},
+    {w:"adventure playground",e:"🛝",q:"Playground"},{w:"castle",e:"🏰",q:"Castle"},
+    {w:"skatepark",e:"🛹",q:"Skatepark"},{w:"funfair",e:"🎡",q:"Amusement park"},
+    {w:"café",e:"☕",q:"Coffeehouse"},{w:"bowling alley",e:"🎳",q:"Bowling alley"},
+    {w:"sunny",e:"☀️",q:"Sun"},{w:"rainy",e:"🌧️",q:"Rain"},
+    {w:"windy",e:"💨",q:"Wind"},{w:"snowy",e:"❄️",q:"Snow"},
+    {w:"cloudy",e:"☁️",q:"Cloud"},{w:"foggy",e:"🌫️",q:"Fog"},
+    {w:"water park",e:"🌊",q:"Water park"},{w:"slide",e:"🎢",q:"Water slide"},
+    {w:"dive",e:"🤿",q:"Underwater diving"},{w:"splash",e:"💦",q:"Splash (fluid mechanics)"} ]},
+];
+
+const ROUND_SIZE = 5;          // pares por pantalla
+const STORE_KEY = "jp2_english_match_v1";
+
+/* ---------- utilidades ---------- */
+const $ = s => document.querySelector(s);
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(secureRand()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function secureRand(){const x=new Uint32Array(1);crypto.getRandomValues(x);return x[0]/4294967296;}
+function chunk(a,n){const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r;}
+function loadProgress(){try{return JSON.parse(localStorage.getItem(STORE_KEY))||{done:[]};}catch(e){return{done:[]};}}
+function saveProgress(p){try{localStorage.setItem(STORE_KEY,JSON.stringify(p));}catch(e){}}
+
+/* ---------- fotos reales (Wikipedia) con caché ---------- */
+const PHOTO_KEY="jp2_photo_cache_v1";
+let photoCache={}; try{photoCache=JSON.parse(localStorage.getItem(PHOTO_KEY))||{};}catch(e){}
+let photoSaveT=null;
+function savePhotoCache(){clearTimeout(photoSaveT);photoSaveT=setTimeout(()=>{try{localStorage.setItem(PHOTO_KEY,JSON.stringify(photoCache));}catch(e){}},400);}
+const photoInflight={};
+function getPhoto(q){
+  if(q in photoCache) return Promise.resolve(photoCache[q]);
+  if(q in photoInflight) return photoInflight[q];
+  const url="https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages"+
+            "&piprop=thumbnail&pithumbsize=420&redirects=1&origin=*&titles="+encodeURIComponent(q);
+  const pr=fetch(url).then(r=>r.json()).then(j=>{
+    let src=null;
+    try{const pg=Object.values(j.query.pages)[0]; src=(pg&&pg.thumbnail&&pg.thumbnail.source)||null;}catch(e){}
+    photoCache[q]=src; savePhotoCache(); delete photoInflight[q]; return src;   // cachea aciertos y "sin imagen"
+  }).catch(()=>{delete photoInflight[q]; return null;});                          // error de red: no cachea, reintentará
+  photoInflight[q]=pr; return pr;
+}
+function prefetchUnit(i){UNITS[i].words.forEach(x=>{const q=(x.q!==undefined?x.q:x.w); if(q)getPhoto(q);});}
+
+/* ---------- audio ---------- */
+let actx=null;
+function tone(freq,dur,type="sine",when=0){
+  if(!actx)return;
+  const o=actx.createOscillator(),g=actx.createGain();
+  o.type=type;o.frequency.value=freq;o.connect(g);g.connect(actx.destination);
+  const t=actx.currentTime+when;
+  g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.25,t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.start(t);o.stop(t+dur+0.02);
+}
+function sndGood(){tone(660,.12,"triangle",0);tone(880,.18,"triangle",.1);}
+function sndWin(){[523,659,784,1046].forEach((f,i)=>tone(f,.2,"triangle",i*.12));}
+function sndBad(){tone(180,.2,"sawtooth",0);}
+function speak(t){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t.replace(/^play |^do |^go to |^have a |^brush my |^get |^fly a |^ride a |^the /,""));u.lang="en-GB";u.rate=.85;speechSynthesis.speak(u);}catch(e){}}
+
+/* ============================================================
+   MAPA / SELECCIÓN DE NIVEL
+   ============================================================ */
+function renderMap(){
+  const p=loadProgress();
+  const grid=$("#levelGrid");grid.innerHTML="";
+  UNITS.forEach((u,i)=>{
+    const done=p.done.includes(i);
+    const unlocked = i===0 || p.done.includes(i-1);
+    const el=document.createElement("div");
+    el.className="lvl"+(done?" done":"")+(unlocked?"":" locked");
+    el.innerHTML=`<div class="num">${i+1}</div>
+                  <div class="nm">${u.title}</div>
+                  <div class="stars">${done?"⭐⭐⭐":""}</div>`;
+    if(unlocked) el.addEventListener("click",()=>startUnit(i));
+    else el.addEventListener("click",()=>toast("🔒 Termina la unidad anterior"));
+    grid.appendChild(el);
+  });
+}
+
+/* ============================================================
+   JUEGO
+   ============================================================ */
+let curUnit=0, rounds=[], roundIdx=0;
+let matchedIds=new Set(), lines=[], drag=null;
+const board=$("#board"), svg=$("#lines"), colL=$("#colLeft"), colR=$("#colRight");
+
+function startUnit(i){
+  if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+  curUnit=i; roundIdx=0;
+  prefetchUnit(i);
+  rounds=chunk(UNITS[i].words.map((x,k)=>({...x,id:k})),ROUND_SIZE);
+  $("#gameTitle").textContent=`Unit ${i+1} · ${UNITS[i].title}`;
+  show("game");
+  renderProgress();
+  renderRound();
+}
+
+function renderProgress(){
+  const p=$("#progress");p.innerHTML="";
+  rounds.forEach((_,r)=>{
+    const d=document.createElement("div");
+    d.className="pdot"+(r<roundIdx?" ok":r===roundIdx?" cur":"");
+    p.appendChild(d);
+  });
+}
+
+function renderRound(){
+  matchedIds.clear(); lines=[]; svg.innerHTML=""; colL.innerHTML=""; colR.innerHTML="";
+  const pairs=rounds[roundIdx];
+  shuffle(pairs).forEach(it=>colL.appendChild(makeCard(it,"word")));
+  shuffle(pairs).forEach(it=>colR.appendChild(makeCard(it,"image")));
+  renderProgress();
+}
+
+function makeCard(it,type){
+  const c=document.createElement("div");
+  c.className="card "+type; c.dataset.id=it.id; c.dataset.type=type;
+  if(type==="word"){
+    c.innerHTML=escapeHtml(it.w)+'<span class="dot"></span>';
+  }else{
+    c.innerHTML='<span class="emoji">'+it.e+'</span>'+
+                '<img class="photo" alt="" draggable="false">'+
+                '<span class="dot"></span>';
+    loadPhoto(c,it);
+  }
+  c.addEventListener("pointerdown",onDown);
+  return c;
+}
+function loadPhoto(card,it){
+  const q=(it.q!==undefined?it.q:it.w);
+  if(!q)return;                                 // q:"" => solo emoji
+  getPhoto(q).then(src=>{
+    if(!src)return;
+    const img=card.querySelector(".photo");
+    if(!img)return;
+    img.onload=()=>card.classList.add("has-photo");   // solo sustituye si la foto carga bien
+    img.src=src;
+  });
+}
+function escapeHtml(s){return s.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
+
+/* ---------- geometría ---------- */
+function rel(clientX,clientY){const b=board.getBoundingClientRect();return{x:clientX-b.left,y:clientY-b.top};}
+function anchor(card){
+  const b=board.getBoundingClientRect(),r=card.getBoundingClientRect();
+  const y=r.top-b.top+r.height/2;
+  const x=card.dataset.type==="word" ? r.right-b.left : r.left-b.left;
+  return{x,y};
+}
+function mkLine(x1,y1,x2,y2,cls){
+  const l=document.createElementNS("http://www.w3.org/2000/svg","line");
+  l.setAttribute("x1",x1);l.setAttribute("y1",y1);l.setAttribute("x2",x2);l.setAttribute("y2",y2);
+  l.setAttribute("stroke-width","7");l.setAttribute("stroke-linecap","round");
+  l.setAttribute("class",cls);
+  if(cls==="tmp"){l.setAttribute("stroke","#ff8c42");l.setAttribute("stroke-dasharray","10 10");}
+  else{l.setAttribute("stroke","#22c55e");}
+  svg.appendChild(l);return l;
+}
+
+/* ---------- arrastre ---------- */
+function onDown(e){
+  const card=e.currentTarget;
+  if(card.classList.contains("done"))return;
+  e.preventDefault();
+  card.classList.add("active");
+  const a=anchor(card);
+  drag={card,line:mkLine(a.x,a.y,a.x,a.y,"tmp"),start:a};
+  window.addEventListener("pointermove",onMove);
+  window.addEventListener("pointerup",onUp);
+  window.addEventListener("pointercancel",onUp);
+}
+function onMove(e){
+  if(!drag)return;
+  const p=rel(e.clientX,e.clientY);
+  drag.line.setAttribute("x2",p.x);drag.line.setAttribute("y2",p.y);
+}
+function onUp(e){
+  if(!drag)return;
+  window.removeEventListener("pointermove",onMove);
+  window.removeEventListener("pointerup",onUp);
+  window.removeEventListener("pointercancel",onUp);
+  const d=drag; drag=null;
+  d.card.classList.remove("active");
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  const target=el&&el.closest?el.closest(".card"):null;
+  svg.removeChild(d.line);
+
+  if(!target || target===d.card || target.dataset.type===d.card.dataset.type || target.classList.contains("done")){
+    return; // suelta en el vacío o tipo equivocado: no pasa nada
+  }
+  if(target.dataset.id===d.card.dataset.id){
+    // ¡correcto!
+    d.card.classList.add("done"); target.classList.add("done");
+    const a1=anchor(d.card),a2=anchor(target);
+    lines.push({a:d.card,b:target,el:mkLine(a1.x,a1.y,a2.x,a2.y,"ok")});
+    matchedIds.add(d.card.dataset.id);
+    sndGood();
+    const word=UNITS[curUnit].words[+d.card.dataset.id].w; speak(word);
+    if(matchedIds.size===rounds[roundIdx].length) setTimeout(roundComplete,350);
+  } else {
+    // incorrecto
+    sndBad();
+    [d.card,target].forEach(c=>{c.classList.add("wrong");setTimeout(()=>c.classList.remove("wrong"),420);});
+  }
+}
+
+/* redibuja las líneas verdes al rotar / cambiar tamaño */
+function redraw(){
+  lines.forEach(o=>{const a=anchor(o.a),b=anchor(o.b);
+    o.el.setAttribute("x1",a.x);o.el.setAttribute("y1",a.y);
+    o.el.setAttribute("x2",b.x);o.el.setAttribute("y2",b.y);});
+}
+new ResizeObserver(redraw).observe(board);
+window.addEventListener("orientationchange",()=>setTimeout(redraw,300));
+
+/* ---------- progreso de ronda / unidad ---------- */
+function roundComplete(){
+  if(roundIdx < rounds.length-1){
+    confetti(28); toast("✅ ¡Bien hecho!");
+    roundIdx++; renderProgress();
+    setTimeout(renderRound,1100);
+  } else {
+    unitComplete();
+  }
+}
+function unitComplete(){
+  const p=loadProgress();
+  if(!p.done.includes(curUnit)){p.done.push(curUnit);saveProgress(p);}
+  sndWin(); confetti(90);
+  renderProgress();
+  const last = curUnit===UNITS.length-1;
+  const hasNext = !last;
+  overlay("🏆", `¡Unidad ${curUnit+1} completada!`,
+    last? "¡Has terminado TODAS las unidades! Eres un campeón 🌟"
+        : "¡Muy bien! Has desbloqueado la siguiente unidad.",
+    [
+      {t:"🗺️ Mapa", cls:"", fn:()=>{hideOverlay();renderMap();show("map");}},
+      ...(hasNext?[{t:"Siguiente ›", cls:"primary", fn:()=>{hideOverlay();startUnit(curUnit+1);}}]:[])
+    ]);
+}
+
+/* ============================================================
+   OVERLAY / TOAST / CONFETTI / NAV
+   ============================================================ */
+function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));$("#"+id).classList.add("active");}
+function overlay(em,title,text,btns){
+  $("#ovEm").textContent=em;$("#ovTitle").textContent=title;$("#ovText").textContent=text;
+  const box=$("#ovBtns");box.innerHTML="";
+  btns.forEach(b=>{const x=document.createElement("button");x.className="btn "+b.cls;x.textContent=b.t;x.onclick=b.fn;box.appendChild(x);});
+  $("#overlay").classList.add("show");
+}
+function hideOverlay(){$("#overlay").classList.remove("show");}
+
+let toastT;
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),1100);}
+
+const cv=$("#confetti"),cx=cv.getContext("2d");let parts=[],raf=null;
+function fit(){cv.width=innerWidth;cv.height=innerHeight;}
+fit();addEventListener("resize",fit);
+const EMO=["⭐","🎉","✨","🎈","🌈","💫","🏅"];
+function confetti(n){
+  for(let i=0;i<n;i++)parts.push({x:secureRand()*cv.width,y:-20-secureRand()*cv.height*.3,
+    v:2+secureRand()*4,s:18+secureRand()*22,a:secureRand()*6,va:(secureRand()-.5)*.3,
+    e:EMO[Math.floor(secureRand()*EMO.length)]});
+  if(!raf)tick();
+}
+function tick(){
+  cx.clearRect(0,0,cv.width,cv.height);
+  parts=parts.filter(p=>p.y<cv.height+30);
+  parts.forEach(p=>{p.y+=p.v;p.a+=p.va;cx.save();cx.translate(p.x,p.y);cx.rotate(p.a);
+    cx.font=p.s+"px serif";cx.textAlign="center";cx.fillText(p.e,0,0);cx.restore();});
+  if(parts.length)raf=requestAnimationFrame(tick);else{raf=null;cx.clearRect(0,0,cv.width,cv.height);}
+}
+
+/* ---------- botones ---------- */
+$("#backBtn").addEventListener("click",()=>{renderMap();show("map");});
+$("#resetBtn").addEventListener("click",()=>{
+  overlay("⚠️","¿Empezar de nuevo?","Se borrará todo tu progreso.",[
+    {t:"Cancelar",cls:"",fn:hideOverlay},
+    {t:"Sí, borrar",cls:"primary",fn:()=>{saveProgress({done:[]});hideOverlay();renderMap();}}
+  ]);
+});
+
+/* evita zoom por doble toque y scroll del board */
+document.addEventListener("dblclick",e=>e.preventDefault(),{passive:false});
+board.addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
+
+/* arranque */
+renderMap();
+</script>
+</body>
+</html>
